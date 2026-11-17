@@ -28,7 +28,7 @@ canvas{width:100%;display:block}
 </div>
 <script>
 const ADDR="0xc1eceec4bff5fd32cfd59a43621f14b38c07ef50";
-const PLAN={BTC:{stop:64480,target:62700},ETH:{stop:1805,target:1755}};
+const PLAN={BTC:{stop:63650,target:64600}};
 const COL={BTC:"#f7931a",ETH:"#8c8cff",SOL:"#14f195",HYPE:"#50e3c2",free:"#3a3f4a"};
 const api=b=>fetch("https://api.hyperliquid.xyz/info",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b)}).then(r=>r.json());
 const f=(n,d=2)=>Number(n).toLocaleString("es-ES",{minimumFractionDigits:d,maximumFractionDigits:d});

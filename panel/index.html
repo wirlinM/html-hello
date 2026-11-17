@@ -1,0 +1,91 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mis posiciones · Hyperliquid</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,system-ui,sans-serif;background:#0f1115;color:#e8eaed}
+.w{max-width:620px;margin:0 auto;padding:18px}
+h1{font-size:20px;margin:0 0 4px}.sub{color:#8a8f98;font-size:13px;margin-bottom:14px;display:flex;align-items:center;gap:6px}
+.dot{width:8px;height:8px;border-radius:50%;background:#3ddc84;animation:p 1.5s infinite}@keyframes p{50%{opacity:.3}}
+.box{background:#181b21;border-radius:14px;padding:16px;margin-bottom:12px}
+.tot{display:flex;justify-content:space-between}.tot span{display:block;color:#8a8f98;font-size:12px}.tot b{font-size:24px}
+h2{font-size:14px;color:#8a8f98;font-weight:600;margin:0 0 10px}
+.pie{display:flex;align-items:center;gap:16px}.leg div{font-size:13px;margin:6px 0;display:flex;align-items:center;gap:8px}
+.leg i{width:10px;height:10px;border-radius:3px;display:inline-block}
+.top{display:flex;justify-content:space-between;align-items:center}.coin{font-size:18px;font-weight:700}
+.tag{font-size:12px;padding:2px 8px;border-radius:8px;margin-left:6px}
+.pnl{font-size:22px;font-weight:700}.g{color:#3ddc84}.r{color:#ff5c6c}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;margin-top:10px;font-size:13px}.grid span{color:#8a8f98}
+.bar{height:8px;border-radius:4px;margin-top:12px;position:relative}
+.bar i{position:absolute;top:-4px;width:4px;height:16px;background:#fff;border-radius:2px;transition:left .5s}
+.lbl{display:flex;justify-content:space-between;font-size:11px;color:#8a8f98;margin-top:4px}
+canvas{width:100%;display:block}
+</style></head><body><div class="w">
+<h1>Mis posiciones</h1><div class="sub"><span class="dot" id="dot"></span><span id="st">Conectando…</span></div>
+<div class="box tot"><div><span>Valor de la cuenta</span><b id="av">–</b></div><div style="text-align:right"><span>PnL abierto</span><b id="tp">–</b></div></div>
+<div class="box"><h2>PnL total en directo</h2><canvas id="line" height="160"></canvas></div>
+<div class="box"><h2>Reparto de tu dinero</h2><div class="pie"><canvas id="pie" width="150" height="150" style="width:150px;height:150px"></canvas><div class="leg" id="leg"></div></div></div>
+<div id="pos"></div>
+<div class="sub" style="justify-content:center">Solo lectura · datos de Hyperliquid · se actualiza cada 2 s</div>
+</div>
+<script>
+const ADDR="0xc1eceec4bff5fd32cfd59a43621f14b38c07ef50";
+const PLAN={BTC:{stop:64480,target:62700},ETH:{stop:1805,target:1755}};
+const COL={BTC:"#f7931a",ETH:"#8c8cff",SOL:"#14f195",HYPE:"#50e3c2",free:"#3a3f4a"};
+const api=b=>fetch("https://api.hyperliquid.xyz/info",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b)}).then(r=>r.json());
+const f=(n,d=2)=>Number(n).toLocaleString("es-ES",{minimumFractionDigits:d,maximumFractionDigits:d});
+const sg=n=>(n>=0?"+":"")+f(n);
+const hist=[];const phist={};
+function setup(c){const r=window.devicePixelRatio||1,w=c.clientWidth,h=c.clientHeight||c.height;c.width=w*r;c.height=h*r;const x=c.getContext("2d");x.scale(r,r);return [x,w,h]}
+function spark(c,data,color,ref){
+ const [x,w,h]=setup(c);if(data.length<2){x.fillStyle="#8a8f98";x.font="12px sans-serif";x.fillText("Recogiendo datos…",8,h/2);return}
+ let lo=Math.min(...data),hi=Math.max(...data);if(ref!==undefined){lo=Math.min(lo,ref);hi=Math.max(hi,ref)}
+ const pad=(hi-lo)*.1||Math.abs(hi)*.001||1;lo-=pad;hi+=pad;
+ const X=i=>i/(data.length-1)*(w-50),Y=v=>h-6-(v-lo)/(hi-lo)*(h-12);
+ if(ref!==undefined){x.strokeStyle="#444a55";x.setLineDash([4,4]);x.beginPath();x.moveTo(0,Y(ref));x.lineTo(w-50,Y(ref));x.stroke();x.setLineDash([])}
+ x.beginPath();data.forEach((v,i)=>i?x.lineTo(X(i),Y(v)):x.moveTo(X(i),Y(v)));
+ x.strokeStyle=color;x.lineWidth=2;x.stroke();
+ x.lineTo(X(data.length-1),h);x.lineTo(0,h);x.closePath();x.fillStyle=color+"22";x.fill();
+ x.fillStyle="#e8eaed";x.font="11px sans-serif";x.fillText(f(hi,2),w-46,12);x.fillText(f(lo,2),w-46,h-4);
+}
+function pie(parts){
+ const c=document.getElementById("pie"),[x,w,h]=setup(c),tot=parts.reduce((a,p)=>a+p.v,0)||1;let a=-Math.PI/2;
+ parts.forEach(p=>{const s=p.v/tot*2*Math.PI;x.beginPath();x.moveTo(w/2,h/2);x.arc(w/2,h/2,70,a,a+s);x.closePath();x.fillStyle=p.c;x.fill();a+=s});
+ x.beginPath();x.arc(w/2,h/2,42,0,2*Math.PI);x.fillStyle="#181b21";x.fill();
+ x.fillStyle="#e8eaed";x.font="bold 14px sans-serif";x.textAlign="center";x.fillText(f(tot),w/2,h/2+2);x.font="10px sans-serif";x.fillStyle="#8a8f98";x.fillText("USDC",w/2,h/2+15);
+ document.getElementById("leg").innerHTML=parts.map(p=>`<div><i style="background:${p.c}"></i>${p.n}: <b>${f(p.v)}</b> (${f(p.v/tot*100,0)}%)</div>`).join("");
+}
+async function tick(){
+ try{
+  const [s,[m,c]]=await Promise.all([api({type:"clearinghouseState",user:ADDR}),api({type:"metaAndAssetCtxs"})]);
+  const px={};m.universe.forEach((a,i)=>px[a.name]=+c[i].markPx);
+  const av=+s.marginSummary.accountValue;document.getElementById("av").textContent=f(av)+" USDC";
+  let tot=0,parts=[],cards=[];
+  for(const {position:p} of s.assetPositions){
+   const sz=+p.szi,mk=px[p.coin],e=+p.entryPx,u=(mk-e)*sz;tot+=u;
+   (phist[p.coin]=phist[p.coin]||[]).push(mk);if(phist[p.coin].length>300)phist[p.coin].shift();
+   parts.push({n:"En "+p.coin,v:Math.max(0,+p.marginUsed),c:COL[p.coin]||"#e0a"});
+   cards.push({p,sz,mk,e,u});
+  }
+  parts.push({n:"Libre",v:Math.max(0,+s.withdrawable),c:COL.free});
+  hist.push(tot);if(hist.length>300)hist.shift();
+  const tp=document.getElementById("tp");tp.textContent=sg(tot)+" $";tp.className=tot>=0?"g":"r";
+  spark(document.getElementById("line"),hist,tot>=0?"#3ddc84":"#ff5c6c",0);
+  pie(parts);
+  const cont=document.getElementById("pos");
+  if(!cards.length)cont.innerHTML='<div class="box">No hay posiciones abiertas.</div>';
+  cards.forEach(({p,sz,mk,e,u})=>{
+   let el=document.getElementById("c-"+p.coin);
+   if(!el){el=document.createElement("div");el.className="box";el.id="c-"+p.coin;el.innerHTML=`<div class="top"><div><span class="coin">${p.coin}</span><span class="tag"></span></div><div class="pnl"></div></div><div class="grid"></div><canvas height="70" style="margin-top:10px"></canvas><div class="barw"></div>`;cont.appendChild(el)}
+   const short=sz<0,d=mk>1e4?0:2,pl=PLAN[p.coin];
+   const tg=el.querySelector(".tag");tg.textContent=(short?"Corto ":"Largo ")+p.leverage.value+"x";tg.style.cssText=short?"background:#3a1d22;color:#ff6b7a":"background:#1d3a26;color:#3ddc84";
+   const pn=el.querySelector(".pnl");pn.textContent=sg(u)+" $";pn.className="pnl "+(u>=0?"g":"r");
+   el.querySelector(".grid").innerHTML=`<span>Precio</span><b>${f(mk,d)}</b><span>Entrada</span><b>${f(e,d)}</b><span>Tamaño</span><b>${Math.abs(sz)} ${p.coin}</b><span>Liquidación</span><b>${p.liquidationPx?f(p.liquidationPx,d):"–"}</b>`+(pl?`<span>Stop</span><b class="r">${f(pl.stop,d)}</b><span>Objetivo</span><b class="g">${f(pl.target,d)}</b>`:"");
+   spark(el.querySelector("canvas"),phist[p.coin],COL[p.coin]||"#fff",e);
+   if(pl){const lo=Math.min(pl.stop,pl.target),hi=Math.max(pl.stop,pl.target),pos=Math.max(0,Math.min(100,(mk-lo)/(hi-lo)*100));
+    el.querySelector(".barw").innerHTML=`<div class="bar" style="background:linear-gradient(90deg,${short?"#1f6b40,#6b1f2a":"#6b1f2a,#1f6b40"})"><i style="left:calc(${pos}% - 2px)"></i></div><div class="lbl"><span>${short?"Objetivo":"Stop"} ${f(lo,d)}</span><span>${short?"Stop":"Objetivo"} ${f(hi,d)}</span></div>`}
+  });
+  [...cont.children].forEach(el=>{if(el.id&&!cards.find(k=>"c-"+k.p.coin==el.id))el.remove()});
+  document.getElementById("st").textContent="En directo · "+new Date().toLocaleTimeString("es-ES");document.getElementById("dot").style.background="#3ddc84";
+ }catch(e){document.getElementById("st").textContent="Sin conexión, reintentando…";document.getElementById("dot").style.background="#ff5c6c"}
+}
+tick();setInterval(tick,2000);
+</script></body></html>
